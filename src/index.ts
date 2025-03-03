@@ -43,6 +43,7 @@ app.post("/", async (req: Request, res: Response) => {
 
 const server = app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
+  console.log(`[server]: Printer Path: ${PRINTER_PATH}`);
 });
 
 process.on("SIGTERM", shutDown);
