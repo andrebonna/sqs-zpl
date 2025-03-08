@@ -1,11 +1,22 @@
-FROM node:20.18.0
+# Use a compatible ARM64 Node.js image
+FROM --platform=linux/arm64 node:18-bullseye
 
+# Set working directory
 WORKDIR /app
 
+# Copy package.json first to leverage Docker cache
 COPY package.json package-lock.json ./
 
-RUN npm install
+# Install dependencies
+RUN npm install --production
+
+# Copy the rest of the application
 COPY . .
+
+# Install additional tools for USB access (if needed)
+RUN apt-get update && apt-get install -y udev
+
+# Build the project (if using TypeScript)
 RUN npm run build
 
 CMD ["node", "dist/index.js"]
