@@ -1,5 +1,5 @@
 # Use a compatible ARM64 Node.js image
-FROM --platform=linux/arm64 node:18-bullseye
+FROM node:18-bullseye
 
 # Set working directory
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 
 # Install dependencies
-RUN npm install --production
+RUN npm install
 
 # Copy the rest of the application
 COPY . .
