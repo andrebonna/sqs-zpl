@@ -1,24 +1,19 @@
-# Use a compatible ARM64 Node.js image
-FROM node:18-bullseye
-
-# Set working directory
+FROM node:18-bullseye AS builder
 WORKDIR /app
-
-# Copy package.json first to leverage Docker cache
 COPY package.json package-lock.json ./
-
-# Install dependencies
 RUN npm install
-
-# Copy the rest of the application
 COPY . .
-
-# Install additional tools for USB access (if needed)
-RUN apt-get update && apt-get install -y udev
-
-# Build the project (if using TypeScript)
 RUN npm run build
 
-CMD ["node", "dist/index.js"]
+# Install additional tools for USB access (if needed)
+#DRUN apt-get update && apt-get install -y udev
+
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app/node_modules /app/node_modules
+COPY --from=builder /app/.env.development /app/.env.development
+COPY --from=builder /app/.env /app/.env
+COPY --from=builder /app/dist /app
+CMD ["node", "index.js"]
 
 EXPOSE 3000
