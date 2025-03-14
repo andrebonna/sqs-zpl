@@ -1,58 +1,79 @@
-import express, { Express, Request, Response } from "express";
-import fs from "fs";
+import {
+  SQSClient,
+  ReceiveMessageCommand,
+  DeleteMessageCommand,
+} from "@aws-sdk/client-sqs";
+
+import { defaultProvider } from "@aws-sdk/credential-provider-node";
+
 import { config } from "@dotenvx/dotenvx";
-import cors from "cors";
+import net from "net";
 
 config();
 
-const app: Express = express();
-const port = process.env.PORT;
-const PRINTER_PATH: string = process.env.PRINTER_PATH
-  ? process.env.PRINTER_PATH
-  : "/dev/usb/lp2";
+const REGION = process.env.AWS_REGION!;
+const QUEUE_URL = process.env.SQS_QUEUE_URL!;
+const PRINTER_IP = process.env.PRINTER_IP!;
+const PRINTER_PORT: number = +process.env.PRINTER_PORT!;
 
-app.use(express.text({ type: "*/*" }));
-
-app.use(cors());
-
-app.get("/health", async (_, res) => {
-  res.status(200).json({
-    status: "UP",
-    timestamp: new Date(),
-    uptime: process.uptime(),
-  });
+const sqsClient = new SQSClient({
+  region: REGION,
+  credentials: defaultProvider(),
 });
 
-app.post("/", async (req: Request, res: Response) => {
-  const zplData = req.body;
+async function pollMessages() {
+  console.log("🚀 SQS Polling Service Started...");
 
-  if (!zplData) {
-    res.status(400).send("No ZPL data received");
-    return;
+  while (true) {
+    console.log("Long Polling starting...");
+    try {
+      // Fetch messages from SQS
+      const command = new ReceiveMessageCommand({
+        QueueUrl: QUEUE_URL,
+        MaxNumberOfMessages: 1,
+        WaitTimeSeconds: 20,
+      });
+
+      const response = await sqsClient.send(command);
+
+      if (response.Messages && response.Messages.length > 0) {
+        for (const message of response.Messages) {
+          await print(message.Body!);
+
+          // Delete message from SQS after processing
+          const deleteCommand = new DeleteMessageCommand({
+            QueueUrl: QUEUE_URL,
+            ReceiptHandle: message.ReceiptHandle,
+          });
+
+          await sqsClient.send(deleteCommand);
+          console.log("✅ Message deleted from SQS");
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error fetching messages:", error);
+    }
   }
-
-  try {
-    fs.writeFileSync(PRINTER_PATH, zplData, { encoding: "utf-8" });
-    console.log("Print job sent successfully!");
-  } catch (error) {
-    console.error("Failed to print:", error);
-  }
-
-  res.status(200).send();
-});
-
-const server = app.listen(port, () => {
-  console.log(`[server]: Server is running at http://localhost:${port}`);
-  console.log(`[server]: Printer Path: ${PRINTER_PATH}`);
-});
-
-process.on("SIGTERM", shutDown);
-process.on("SIGINT", shutDown);
-
-function shutDown() {
-  console.log("Received kill signal, shutting down gracefully");
-  server.close(async () => {
-    console.log("exiting");
-    process.exit(0);
-  });
 }
+
+// Start polling
+pollMessages();
+
+const print = async (zplData: string) => {
+  return new Promise<void>((resolve) => {
+    const client = new net.Socket();
+    client.connect(PRINTER_PORT, PRINTER_IP, () => {
+      console.log("Connected to Zebra printer...");
+      client.write(`${zplData}\n`, () => {
+        client.end();
+        console.log("Connection ended!");
+        resolve();
+      });
+    });
+    client.on("error", (err: NodeJS.ErrnoException) => {
+      if (err.code !== "ECONNRESET") {
+        console.error("❌ Unexpected Printer Connection Error:", err);
+      }
+    });
+  });
+};
