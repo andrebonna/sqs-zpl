@@ -34,4 +34,4 @@ jobs:
           context: .
           push: true
           platforms: linux/arm64
-          tags: andrebonna/express-zpl:latest
+          tags: andrebonna/sqs-zpl:latest

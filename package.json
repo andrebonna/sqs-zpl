@@ -1,5 +1,5 @@
 {
-  "name": "express-zpl",
+  "name": "sqs-zpl",
   "version": "1.0.1",
   "main": "index.js",
   "scripts": {
