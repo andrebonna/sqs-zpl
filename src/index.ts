@@ -13,13 +13,14 @@ config();
 
 const REGION = process.env.AWS_REGION!;
 const QUEUE_URL = process.env.SQS_QUEUE_URL!;
-const PRINTER_IP = process.env.PRINTER_IP!;
 const PRINTER_PORT: number = +process.env.PRINTER_PORT!;
 
 const sqsClient = new SQSClient({
   region: REGION,
   credentials: defaultProvider(),
 });
+
+console.log("Queue URL: ", QUEUE_URL);
 
 async function pollMessages() {
   console.log("🚀 SQS Polling Service Started...");
@@ -38,7 +39,9 @@ async function pollMessages() {
 
       if (response.Messages && response.Messages.length > 0) {
         for (const message of response.Messages) {
-          await print(message.Body!);
+          const body = JSON.parse(message.Body!);
+
+          await print(body.message, body.printerAddress);
 
           // Delete message from SQS after processing
           const deleteCommand = new DeleteMessageCommand({
@@ -59,10 +62,10 @@ async function pollMessages() {
 // Start polling
 pollMessages();
 
-const print = async (zplData: string) => {
+const print = async (zplData: string, printerIP: string) => {
   return new Promise<void>((resolve) => {
     const client = new net.Socket();
-    client.connect(PRINTER_PORT, PRINTER_IP, () => {
+    client.connect(PRINTER_PORT, printerIP, () => {
       console.log("Connected to Zebra printer...");
       client.write(`${zplData}\n`, () => {
         client.end();

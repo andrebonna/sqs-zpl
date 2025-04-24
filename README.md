@@ -1,0 +1,1 @@
+Run your container with the environment variable SQS_QUEUE_URL
